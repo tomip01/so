@@ -12,6 +12,8 @@ int generate_random_number(){
 
 void ejecutar_hijo(int hijo, int start, int n, int pipe_ida[2], int pipe_vuelta[2], int pipe_nodos[][2]){
 	// cierro pipes
+
+	// printf("soy el hijo %i \n", hijo);
 	if (hijo != start) {
 		close(pipe_ida[PIPE_READ]);
 		close(pipe_ida[PIPE_WRITE]);
@@ -24,8 +26,14 @@ void ejecutar_hijo(int hijo, int start, int n, int pipe_ida[2], int pipe_vuelta[
 	for (int i = 0; i < n; i++) {
 		// cierro pipes entre nodos
 		int anterior = (i-1) < 0 ? n-1 : i-1;
-		close(pipe_nodos[anterior][PIPE_WRITE]);
-		close(pipe_nodos[i][PIPE_READ]);
+		if (i != anterior && i != hijo) {
+			close(pipe_nodos[i][PIPE_READ]);
+			close(pipe_nodos[i][PIPE_WRITE]);
+		} else if (i == anterior) {
+			close(pipe_nodos[anterior][PIPE_WRITE]);
+		} else {
+			close(pipe_nodos[i][PIPE_READ]);
+		}
 	}
 
 	if (hijo == start) {
@@ -35,28 +43,46 @@ void ejecutar_hijo(int hijo, int start, int n, int pipe_ida[2], int pipe_vuelta[
 
 		do {
 			valor_secreto = generate_random_number();
-		} while (valor_secreto < valor_inicio);		// genero numeros random hasta que sean mayores que el valor de inicio
+		} while (valor_secreto <= valor_inicio);		// genero numeros random hasta que sean mayores que el valor de inicio
 		actual = valor_inicio;
+
+		printf("el num random es %i \n", valor_secreto);
 		
 		while (actual < valor_secreto) {
-			int anterior = (hijo-1) < 0 ? n-1 : hijo-1;	// me fijo para no pasarme de rango en los extremos
+			// int anterior = (hijo-1) < 0 ? n-1 : hijo-1;	// me fijo para no pasarme de rango en los extremos
+			int anterior;
+			if (hijo-1 < 0)
+				anterior = n-1;
+			else
+				anterior = hijo-1;
 			write(pipe_nodos[hijo][PIPE_WRITE], &actual, sizeof(actual));
 			read(pipe_nodos[anterior][PIPE_READ], &actual, sizeof(actual));
 			actual++;
-			// printf("soy el hijo %i, y el actual es %i", hijo, actual);
+			printf("soy el hijo %i, y el actual es %i \n", hijo, actual);
 		}
 
-		int termino = -1;
+		int termino = -1;		// aviso que termino a los otros hijos
 		write(pipe_nodos[hijo][PIPE_WRITE], &termino, sizeof(termino));
 
+		// aviso al padre que termino, 
 		write(pipe_vuelta[PIPE_WRITE], &actual, sizeof(actual));
 		
 	} else {
 		int actual;
+		printf("el actual es %i \n", actual);
 		while (1) {
-			int anterior = (hijo-1) < 0 ? n-1 : hijo-1;
-			read(pipe_nodos[anterior][PIPE_READ], &actual, sizeof(actual));
-			if (actual == -1) break;			
+			int anterior;
+			if (hijo-1 < 0)
+				anterior = n-1;
+			else
+				anterior = hijo-1;
+			// int anterior = (hijo-1) < 0 ? n-1 : hijo-1;
+			ssize_t tmp = read(pipe_nodos[anterior][PIPE_READ], &actual, sizeof(actual));
+			if (tmp == 0) printf ("falle \n");
+			if (actual == -1){
+				write(pipe_nodos[hijo][PIPE_WRITE], &actual, sizeof(actual));	
+				break;			
+			}
 			actual++;
 			write(pipe_nodos[hijo][PIPE_WRITE], &actual, sizeof(actual));
 			printf("soy el hijo %i, y el actual es %i \n", hijo, actual);
@@ -101,17 +127,18 @@ int main(int argc, char **argv)
 		else childrens[i] = hijo;
 	}
 
-	// le digo que empiece al hijo start
-	write(pipe_ida[PIPE_WRITE], &buffer, sizeof(buffer));
 
+	// cierro nodos entre hijos
 	close(pipe_ida[PIPE_READ]);
 	close(pipe_vuelta[PIPE_WRITE]);
     
-	// cierro nodos entre hijos
 	for (int i = 0; i < n; i++) {
 		close(pipe_nodos[i][PIPE_READ]);
 		close(pipe_nodos[i][PIPE_WRITE]);
 	}
+
+	// le digo que empiece al hijo start
+	write(pipe_ida[PIPE_WRITE], &buffer, sizeof(buffer));
 
 	// leo resultado
 	int res;
