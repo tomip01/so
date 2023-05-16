@@ -1,0 +1,2 @@
+/vagrant/ejemplo/hello.o
+
