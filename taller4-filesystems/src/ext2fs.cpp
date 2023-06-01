@@ -343,12 +343,30 @@ struct Ext2FSInode * Ext2FS::get_file_inode_from_dir_inode(struct Ext2FSInode * 
 	unsigned int dir_bloque = get_block_address(from,index_bloque);
 	read_block(dir_bloque,blocks);
 	index_bloque++;
-	unsigned int dir_bloque = get_block_address(from,index_bloque);
+	dir_bloque = get_block_address(from,index_bloque);
 	read_block(dir_bloque,blocks+block_size);
 
 	bool encontre = false;
+	unsigned int byte_pos = 0;
+	Ext2FSDirEntry* dEntries = (Ext2FSDirEntry*)blocks;
+	Ext2FSInode * res;
+
 	while (!encontre) {
-		// falta
+		if (strcmp(dEntries->name,filename))
+			res = (Ext2FSInode *) dEntries->inode;
+		else {
+			byte_pos += dEntries->record_length;
+			if (byte_pos >= block_size) {
+				memcpy(blocks,blocks+block_size,block_size);
+				index_bloque++;
+				dir_bloque = get_block_address(from,index_bloque);
+				read_block(dir_bloque,blocks+block_size);
+				byte_pos -= block_size;
+				dEntries = (Ext2FSDirEntry*)((unsigned long long)dEntries - block_size);
+			}
+			dEntries = (Ext2FSDirEntry*)((unsigned long long)dEntries + dEntries->record_length);
+		}
+		
 	}
 
 }
